@@ -11,7 +11,7 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x build/index.js",
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
     "watch": "tsc --watch"
   },
@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
-    "shx": "^0.3.4",
     "typescript": "^5.3.3"
   }
 }
