@@ -38,6 +38,17 @@ async function createServer(directory: string, options: any = {}) {
   const spinner = ora("Creating MCP server...").start();
 
   try {
+    // Check if directory already exists
+    try {
+      await fs.access(directory);
+      spinner.fail(
+        chalk.red(`Error: Directory '${directory}' already exists.`),
+      );
+      process.exit(1);
+    } catch (err) {
+      // Directory doesn't exist, we can proceed
+    }
+
     // Create project directory
     await fs.mkdir(directory, { recursive: true });
 
