@@ -20,7 +20,8 @@ After creating your server:
 ```bash
 cd my-server     # Navigate to server directory
 npm install      # Install dependencies
-npm run dev      # Start TypeScript compiler in watch mode
+npm run watch    # Start TypeScript compiler in watch mode
+npm link         # Make your server binary globally available (optional)
 ```
 
 ## License
