@@ -163,9 +163,13 @@ async function createServer(directory: string, options: any = {}) {
     console.log("\nNext steps:");
     console.log(chalk.cyan(`  cd ${directory}`));
     console.log(chalk.cyan("  npm install"));
-    console.log(chalk.cyan("  npm run watch"));
     console.log(
-      chalk.cyan("  npm link (optional, to make available globally)\n"),
+      chalk.cyan(`  npm run build  ${chalk.reset("# or: npm run watch")}`),
+    );
+    console.log(
+      chalk.cyan(
+        `  npm link       ${chalk.reset("# optional, to make available globally")}\n`,
+      ),
     );
   } catch (error) {
     spinner.fail(chalk.red("Failed to create MCP server"));
