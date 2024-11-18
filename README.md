@@ -1,4 +1,4 @@
-# create-typescript-server
+# create-typescript-server ![NPM Version](https://img.shields.io/npm/v/%40modelcontextprotocol%2Fcreate-server)
 
 A command line tool for quickly scaffolding new MCP (Model Context Protocol) servers.
 
