@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs/promises";
 import chalk from "chalk";
 import ora from "ora";
+import ejs from "ejs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,7 +51,7 @@ async function createServer(directory: string, options: any = {}) {
 
       if (!stats.isFile()) continue;
 
-      const targetPath = path.join(directory, file);
+      const targetPath = path.join(directory, file.replace(".ejs", ""));
       const targetDir = path.dirname(targetPath);
 
       // Create subdirectories if needed
@@ -59,9 +60,8 @@ async function createServer(directory: string, options: any = {}) {
       // Read and process template file
       let content = await fs.readFile(sourcePath, "utf-8");
 
-      // Replace template variables
-      content = content.replace(/\{\{name\}\}/g, config.name);
-      content = content.replace(/\{\{description\}\}/g, config.description);
+      // Use EJS to render the template
+      content = ejs.render(content, config);
 
       // Write processed file
       await fs.writeFile(targetPath, content);
