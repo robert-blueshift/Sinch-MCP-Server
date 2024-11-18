@@ -84,7 +84,7 @@ async function createServer(directory: string, options: any = {}) {
 const program = new Command()
   .name("create-mcp-server")
   .description("Create a new MCP server")
-  .argument("[directory]", "Directory to create the server in", ".")
+  .argument("[directory]", "Directory to create the server in", process.cwd())
   .option("-n, --name <name>", "Name of the server")
   .option("-d, --description <description>", "Description of the server")
   .action(createServer);
