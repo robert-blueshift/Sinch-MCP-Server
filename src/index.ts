@@ -10,40 +10,62 @@ import ejs from "ejs";
 import os from "os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-async function updateClaudeConfig(directory: string, name: string) {
-  let configDir;
+function getClaudeConfigDir(): string {
   switch (os.platform()) {
     case "darwin":
-      configDir = path.join(
+      return path.join(
         os.homedir(),
         "Library",
         "Application Support",
         "Claude",
       );
-      break;
     case "win32":
-      configDir = path.join(process.env.APPDATA || "", "Claude");
-      break;
+      if (!process.env.APPDATA) {
+        throw new Error("APPDATA environment variable is not set");
+      }
+      return path.join(process.env.APPDATA, "Claude");
     default:
-      return;
+      throw new Error(
+        `Unsupported operating system for Claude configuration: ${os.platform()}`,
+      );
   }
+}
 
-  const configFile = path.join(configDir, "claude_desktop_config.json");
-
+async function updateClaudeConfig(name: string, directory: string) {
   try {
+    const configFile = path.join(
+      getClaudeConfigDir(),
+      "claude_desktop_config.json",
+    );
+
     const config = JSON.parse(await fs.readFile(configFile, "utf-8"));
 
     if (!config.mcpServers) {
       config.mcpServers = {};
     }
 
-    if (!config.mcpServers[name]) {
-      config.mcpServers[name] = {
-        command: "node",
-        args: ["index.js"],
-      };
+    if (config.mcpServers[name]) {
+      const { replace } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "replace",
+          message: `An MCP server named "${name}" is already configured for Claude.app. Do you want to replace it?`,
+          default: false,
+        },
+      ]);
+      if (!replace) {
+        console.log(
+          chalk.yellow(
+            `Skipped replacing Claude.app config for existing MCP server "${name}"`,
+          ),
+        );
+        return;
+      }
     }
+    config.mcpServers[name] = {
+      command: "node",
+      args: [path.resolve(directory, "build", "index.js")],
+    };
 
     await fs.writeFile(configFile, JSON.stringify(config, null, 2));
     console.log(
@@ -134,7 +156,7 @@ async function createServer(directory: string, options: any = {}) {
     spinner.succeed(chalk.green("MCP server created successfully!"));
 
     if (answers.installForClaude) {
-      await updateClaudeConfig(directory, config.name);
+      await updateClaudeConfig(config.name, directory);
     }
 
     // Print next steps
