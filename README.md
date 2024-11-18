@@ -5,10 +5,7 @@ A command line tool for quickly scaffolding new MCP (Model Context Protocol) ser
 ## Getting Started
 
 ```bash
-# Create a new server in the current directory
-npx @modelcontextprotocol/create-server
-
-# Or specify a directory
+# Create a new server in the directory `my-server`
 npx @modelcontextprotocol/create-server my-server
 
 # With options
