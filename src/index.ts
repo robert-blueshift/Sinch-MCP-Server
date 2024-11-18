@@ -103,7 +103,7 @@ async function createServer(directory: string, options: any = {}) {
 
   try {
     // Create project directory
-    await fs.mkdir(directory, { recursive: true });
+    await fs.mkdir(directory);
 
     // Copy template files
     const templateDir = path.join(__dirname, "../template");
