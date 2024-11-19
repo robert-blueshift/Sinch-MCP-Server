@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { Command } from "commander";
-import inquirer from "inquirer";
-import { fileURLToPath } from "url";
-import path from "path";
-import fs from "fs/promises";
 import chalk from "chalk";
-import ora from "ora";
+import { Command } from "commander";
 import ejs from "ejs";
+import fs from "fs/promises";
+import inquirer from "inquirer";
+import ora from "ora";
 import os from "os";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 function getClaudeConfigDir(): string {
@@ -38,7 +38,18 @@ async function updateClaudeConfig(name: string, directory: string) {
       "claude_desktop_config.json",
     );
 
-    const config = JSON.parse(await fs.readFile(configFile, "utf-8"));
+    let config;
+    try {
+      config = JSON.parse(await fs.readFile(configFile, "utf-8"));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw err;
+      }
+
+      // File doesn't exist, create initial config
+      config = {};
+      await fs.mkdir(path.dirname(configFile), { recursive: true });
+    }
 
     if (!config.mcpServers) {
       config.mcpServers = {};
@@ -69,14 +80,10 @@ async function updateClaudeConfig(name: string, directory: string) {
 
     await fs.writeFile(configFile, JSON.stringify(config, null, 2));
     console.log(
-      chalk.green(
-        "✓ Successfully added MCP server to Claude.app configuration",
-      ),
+      chalk.green("✓ Successfully added MCP server to Claude.app configuration"),
     );
   } catch {
-    console.log(
-      chalk.yellow("Note: Could not update Claude.app configuration"),
-    );
+    console.log(chalk.yellow("Note: Could not update Claude.app configuration"));
   }
 }
 
