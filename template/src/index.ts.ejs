@@ -4,6 +4,7 @@
  * - Listing notes as resources
  * - Reading individual notes
  * - Creating new notes via a tool
+ * - Summarizing all notes via a prompt
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -13,6 +14,8 @@ import {
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
 /**
@@ -30,8 +33,8 @@ const notes: { [id: string]: Note } = {
 };
 
 /**
- * Create an MCP server with capabilities for resources (to list/read notes)
- * and tools (to create new notes).
+ * Create an MCP server with capabilities for resources (to list/read notes),
+ * tools (to create new notes), and prompts (to summarize notes).
  */
 const server = new Server(
   {
@@ -42,6 +45,7 @@ const server = new Server(
     capabilities: {
       resources: {},
       tools: {},
+      prompts: {},
     },
   }
 );
@@ -142,6 +146,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     default:
       throw new Error("Unknown tool");
   }
+});
+
+/**
+ * Handler that lists available prompts.
+ * Exposes a single "summarize_notes" prompt that summarizes all notes.
+ */
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return {
+    prompts: [
+      {
+        name: "summarize_notes",
+        description: "Summarize all notes",
+      }
+    ]
+  };
+});
+
+/**
+ * Handler for the summarize_notes prompt.
+ * Returns a prompt that requests summarization of all notes, with the notes' contents embedded as resources.
+ */
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  if (request.params.name !== "summarize_notes") {
+    throw new Error("Unknown prompt");
+  }
+
+  const embeddedNotes = Object.entries(notes).map(([id, note]) => ({
+    type: "resource" as const,
+    resource: {
+      uri: `note:///${id}`,
+      mimeType: "text/plain",
+      text: note.content
+    }
+  }));
+
+  return {
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: "Please summarize the following notes:"
+        }
+      },
+      ...embeddedNotes.map(note => ({
+        role: "user" as const,
+        content: note
+      })),
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: "Provide a concise summary of all the notes above."
+        }
+      }
+    ]
+  };
 });
 
 /**
