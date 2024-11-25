@@ -144,7 +144,13 @@ async function createServer(directory: string, options: any = {}) {
 
       if (!stats.isFile()) continue;
 
-      const targetPath = path.join(directory, file.replace(".ejs", ""));
+      // Special handling for dot files - remove the leading dot from template name
+      const targetPath = path.join(
+        directory,
+        file.startsWith('dotfile-')
+          ? `.${file.slice(8).replace('.ejs', '')}`
+          : file.replace('.ejs', '')
+      );
       const targetDir = path.dirname(targetPath);
 
       // Create subdirectories if needed
