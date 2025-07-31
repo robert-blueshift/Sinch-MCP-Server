@@ -40,8 +40,8 @@ This MCP server provides access to the following Sinch APIs:
 
 1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd sinch-mcp-server
+git clone https://github.com/robert-blueshift/Sinch-MCP-Server.git
+cd Sinch-MCP-Server
 ```
 
 2. Install dependencies:
