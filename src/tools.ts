@@ -8,6 +8,16 @@
 import { getSinchClient } from './sinch-server.js';
 
 export const tools = [
+  // Project Management Tools
+  {
+    name: "list_configured_projects",
+    description: "List all configured Sinch projects available for use",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+
   // SMS Tools
   {
     name: "send_sms",
@@ -27,6 +37,10 @@ export const tools = [
         body: {
           type: "string",
           description: "Message content (max 1600 characters)"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         },
         delivery_report: {
           type: "string",
@@ -57,6 +71,10 @@ export const tools = [
         batch_id: {
           type: "string",
           description: "The ID of the SMS batch to retrieve"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["batch_id"]
@@ -77,6 +95,10 @@ export const tools = [
           type: "boolean",
           description: "Get full report with recipient details",
           default: false
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["batch_id"]
@@ -96,6 +118,10 @@ export const tools = [
         end_date: {
           type: "string",
           description: "End date in ISO 8601 format"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       }
     }
@@ -124,6 +150,10 @@ export const tools = [
             enum: ["SMS", "VOICE"]
           },
           description: "Required capabilities for the number"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       }
     }
@@ -162,6 +192,10 @@ export const tools = [
             }
           },
           description: "Voice configuration for the number"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["phone_number"]
@@ -173,7 +207,12 @@ export const tools = [
     description: "List all active phone numbers in your account",
     inputSchema: {
       type: "object",
-      properties: {}
+      properties: {
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
+        }
+      }
     }
   },
 
@@ -186,6 +225,10 @@ export const tools = [
         phone_number: {
           type: "string",
           description: "Phone number in E.164 format"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["phone_number"]
@@ -201,6 +244,10 @@ export const tools = [
         phone_number: {
           type: "string",
           description: "Phone number in E.164 format to release"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["phone_number"]
@@ -230,6 +277,10 @@ export const tools = [
         reference: {
           type: "string",
           description: "Reference ID for the verification"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["phone_number", "method"]
@@ -249,6 +300,10 @@ export const tools = [
         code: {
           type: "string",
           description: "The verification code received by the user"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["verification_id", "code"]
@@ -264,6 +319,10 @@ export const tools = [
         verification_id: {
           type: "string",
           description: "The verification ID to check"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["verification_id"]
@@ -288,6 +347,10 @@ export const tools = [
         description: {
           type: "string",
           description: "Optional description for the subproject"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["parent_project_id", "display_name"]
@@ -303,6 +366,10 @@ export const tools = [
         parent_project_id: {
           type: "string",
           description: "The parent project ID to list subprojects for"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["parent_project_id"]
@@ -322,6 +389,10 @@ export const tools = [
         subproject_id: {
           type: "string",
           description: "The subproject ID to retrieve"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["parent_project_id", "subproject_id"]
@@ -341,6 +412,10 @@ export const tools = [
         subproject_id: {
           type: "string",
           description: "The subproject ID to delete"
+        },
+        project_config: {
+          type: "string",
+          description: "Name of the project configuration to use (optional - uses default if not specified)"
         }
       },
       required: ["parent_project_id", "subproject_id"]
@@ -371,6 +446,9 @@ export async function handleToolCall(name: string, args: any) {
   const client = getSinchClient();
 
   switch (name) {
+    case "list_configured_projects":
+      return client.listConfiguredProjects();
+
     case "send_sms":
       return await client.sendSMS(
         args.to,
@@ -380,40 +458,43 @@ export async function handleToolCall(name: string, args: any) {
           delivery_report: args.delivery_report,
           expire_at: args.expire_at,
           flash_message: args.flash_message
-        }
+        },
+        args.project_config
       );
 
     case "get_sms_batch":
-      return await client.getSMSBatch(args.batch_id);
+      return await client.getSMSBatch(args.batch_id, args.project_config);
 
     case "get_delivery_report":
-      return await client.getDeliveryReport(args.batch_id, args.full);
+      return await client.getDeliveryReport(args.batch_id, args.full, args.project_config);
 
     case "list_sms_batches":
-      return await client.listSMSBatches(args.start_date, args.end_date);
+      return await client.listSMSBatches(args.start_date, args.end_date, args.project_config);
 
     case "search_available_numbers":
       return await client.searchAvailableNumbers(
         args.region_code,
         args.type,
-        args.capability
+        args.capability,
+        args.project_config
       );
 
     case "activate_number":
       return await client.activateNumber(
         args.phone_number,
         args.sms_configuration,
-        args.voice_configuration
+        args.voice_configuration,
+        args.project_config
       );
 
     case "list_active_numbers":
-      return await client.listActiveNumbers();
+      return await client.listActiveNumbers(args.project_config);
 
     case "get_active_number":
-      return await client.getActiveNumber(args.phone_number);
+      return await client.getActiveNumber(args.phone_number, args.project_config);
 
     case "release_number":
-      return await client.releaseNumber(args.phone_number);
+      return await client.releaseNumber(args.phone_number, args.project_config);
 
     case "start_verification":
       return await client.startVerification(
@@ -422,31 +503,33 @@ export async function handleToolCall(name: string, args: any) {
         {
           custom: args.custom,
           reference: args.reference
-        }
+        },
+        args.project_config
       );
 
     case "report_verification":
-      return await client.reportVerification(args.verification_id, args.code);
+      return await client.reportVerification(args.verification_id, args.code, args.project_config);
 
     case "get_verification":
-      return await client.getVerification(args.verification_id);
+      return await client.getVerification(args.verification_id, args.project_config);
 
     // Project Management Tools
     case "create_subproject":
       return await client.createSubproject(
         args.parent_project_id,
         args.display_name,
-        { description: args.description }
+        { description: args.description },
+        args.project_config
       );
 
     case "list_subprojects":
-      return await client.listSubprojects(args.parent_project_id);
+      return await client.listSubprojects(args.parent_project_id, args.project_config);
 
     case "get_subproject":
-      return await client.getSubproject(args.parent_project_id, args.subproject_id);
+      return await client.getSubproject(args.parent_project_id, args.subproject_id, args.project_config);
 
     case "delete_subproject":
-      return await client.deleteSubproject(args.parent_project_id, args.subproject_id);
+      return await client.deleteSubproject(args.parent_project_id, args.subproject_id, args.project_config);
 
     // Multi-Project Management Tools
     case "list_all_subprojects":

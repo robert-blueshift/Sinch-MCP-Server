@@ -14,51 +14,105 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 class SinchAPIClient {
-    smsClient;
-    numbersClient;
-    verificationClient;
-    subprojectClient;
     config;
     constructor(config) {
         this.config = config;
-        // SMS API client
-        const region = config.region || 'us';
+    }
+    // Get project configuration by name or use default
+    getProjectConfig(projectName) {
+        // If specific project requested
+        if (projectName) {
+            if (this.config.projects && this.config.projects[projectName]) {
+                return this.config.projects[projectName];
+            }
+            throw new Error(`Project configuration '${projectName}' not found`);
+        }
+        // Try default project from multi-project config
+        if (this.config.defaultProject && this.config.projects) {
+            const defaultConfig = this.config.projects[this.config.defaultProject];
+            if (defaultConfig)
+                return defaultConfig;
+        }
+        // Fall back to legacy single-project config
+        if (this.config.servicePlanId && this.config.apiToken) {
+            return {
+                servicePlanId: this.config.servicePlanId,
+                apiToken: this.config.apiToken,
+                projectId: this.config.projectId,
+                appId: this.config.appId,
+                clientId: this.config.clientId,
+                clientSecret: this.config.clientSecret,
+                region: this.config.region || 'us'
+            };
+        }
+        throw new Error('No valid project configuration found. Either provide project name or configure default project.');
+    }
+    // Create API client for specific project
+    createSMSClient(projectConfig) {
+        const region = projectConfig.region || 'us';
         const smsBaseURL = `https://${region}.sms.api.sinch.com`;
-        this.smsClient = axios.create({
+        return axios.create({
             baseURL: smsBaseURL,
             headers: {
-                'Authorization': `Bearer ${config.apiToken}`,
-                'Content-Type': 'application/json',
-            },
-        });
-        // Numbers API client
-        this.numbersClient = axios.create({
-            baseURL: 'https://numbers.api.sinch.com',
-            headers: {
-                'Authorization': `Bearer ${config.apiToken}`,
-                'Content-Type': 'application/json',
-            },
-        });
-        // Verification API client
-        this.verificationClient = axios.create({
-            baseURL: 'https://verification.api.sinch.com',
-            headers: {
-                'Authorization': `Bearer ${config.apiToken}`,
-                'Content-Type': 'application/json',
-            },
-        });
-        // Subproject API client (for project management)
-        this.subprojectClient = axios.create({
-            baseURL: 'https://subproject.api.sinch.com',
-            headers: {
-                'Authorization': `Bearer ${config.apiToken}`,
+                'Authorization': `Bearer ${projectConfig.apiToken}`,
                 'Content-Type': 'application/json',
             },
         });
     }
-    // SMS API methods
-    async sendSMS(to, from, body, options = {}) {
-        const response = await this.smsClient.post(`/xms/v1/${this.config.servicePlanId}/batches`, {
+    createNumbersClient(projectConfig) {
+        return axios.create({
+            baseURL: 'https://numbers.api.sinch.com',
+            headers: {
+                'Authorization': `Bearer ${projectConfig.apiToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+    }
+    createVerificationClient(projectConfig) {
+        return axios.create({
+            baseURL: 'https://verification.api.sinch.com',
+            headers: {
+                'Authorization': `Bearer ${projectConfig.apiToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+    }
+    createSubprojectClient(projectConfig) {
+        return axios.create({
+            baseURL: 'https://subproject.api.sinch.com',
+            headers: {
+                'Authorization': `Bearer ${projectConfig.apiToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+    }
+    // List all configured projects
+    listConfiguredProjects() {
+        const projects = [];
+        if (this.config.projects) {
+            for (const [name, config] of Object.entries(this.config.projects)) {
+                projects.push({
+                    name,
+                    displayName: config.displayName || name,
+                    projectId: config.projectId
+                });
+            }
+        }
+        // Add legacy config if exists
+        if (this.config.servicePlanId && this.config.apiToken) {
+            projects.push({
+                name: 'default',
+                displayName: 'Default Project',
+                projectId: this.config.projectId
+            });
+        }
+        return projects;
+    }
+    // SMS API methods (now with project selection)
+    async sendSMS(to, from, body, options = {}, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const smsClient = this.createSMSClient(projectConfig);
+        const response = await smsClient.post(`/xms/v1/${projectConfig.servicePlanId}/batches`, {
             to,
             from,
             body,
@@ -69,26 +123,37 @@ class SinchAPIClient {
         });
         return response.data;
     }
-    async getSMSBatch(batchId) {
-        const response = await this.smsClient.get(`/xms/v1/${this.config.servicePlanId}/batches/${batchId}`);
+    async getSMSBatch(batchId, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const smsClient = this.createSMSClient(projectConfig);
+        const response = await smsClient.get(`/xms/v1/${projectConfig.servicePlanId}/batches/${batchId}`);
         return response.data;
     }
-    async getDeliveryReport(batchId, full = false) {
+    async getDeliveryReport(batchId, full = false, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const smsClient = this.createSMSClient(projectConfig);
         const endpoint = full ? 'delivery_report/full' : 'delivery_report/summary';
-        const response = await this.smsClient.get(`/xms/v1/${this.config.servicePlanId}/batches/${batchId}/${endpoint}`);
+        const response = await smsClient.get(`/xms/v1/${projectConfig.servicePlanId}/batches/${batchId}/${endpoint}`);
         return response.data;
     }
-    async listSMSBatches(startDate, endDate) {
+    async listSMSBatches(startDate, endDate, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const smsClient = this.createSMSClient(projectConfig);
         const params = new URLSearchParams();
         if (startDate)
             params.set('start_date', startDate);
         if (endDate)
             params.set('end_date', endDate);
-        const response = await this.smsClient.get(`/xms/v1/${this.config.servicePlanId}/batches?${params}`);
+        const response = await smsClient.get(`/xms/v1/${projectConfig.servicePlanId}/batches?${params}`);
         return response.data;
     }
-    // Numbers API methods
-    async searchAvailableNumbers(regionCode, type, capability) {
+    // Numbers API methods (now with project selection)
+    async searchAvailableNumbers(regionCode, type, capability, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const numbersClient = this.createNumbersClient(projectConfig);
+        if (!projectConfig.projectId) {
+            throw new Error(`Project ID required for Numbers API. Please configure projectId for project '${projectName || 'default'}'`);
+        }
         const params = new URLSearchParams();
         if (regionCode)
             params.set('regionCode', regionCode);
@@ -96,32 +161,54 @@ class SinchAPIClient {
             params.set('type', type);
         if (capability?.length)
             params.set('capability', capability.join(','));
-        const response = await this.numbersClient.get(`/v1/projects/${this.config.projectId}/availableNumbers?${params}`);
+        const response = await numbersClient.get(`/v1/projects/${projectConfig.projectId}/availableNumbers?${params}`);
         return response.data;
     }
-    async activateNumber(phoneNumber, smsConfiguration, voiceConfiguration) {
-        const response = await this.numbersClient.post(`/v1/projects/${this.config.projectId}/activeNumbers`, {
+    async activateNumber(phoneNumber, smsConfiguration, voiceConfiguration, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const numbersClient = this.createNumbersClient(projectConfig);
+        if (!projectConfig.projectId) {
+            throw new Error(`Project ID required for Numbers API. Please configure projectId for project '${projectName || 'default'}'`);
+        }
+        const response = await numbersClient.post(`/v1/projects/${projectConfig.projectId}/activeNumbers`, {
             phoneNumber,
             smsConfiguration,
             voiceConfiguration,
         });
         return response.data;
     }
-    async listActiveNumbers() {
-        const response = await this.numbersClient.get(`/v1/projects/${this.config.projectId}/activeNumbers`);
+    async listActiveNumbers(projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const numbersClient = this.createNumbersClient(projectConfig);
+        if (!projectConfig.projectId) {
+            throw new Error(`Project ID required for Numbers API. Please configure projectId for project '${projectName || 'default'}'`);
+        }
+        const response = await numbersClient.get(`/v1/projects/${projectConfig.projectId}/activeNumbers`);
         return response.data;
     }
-    async getActiveNumber(phoneNumber) {
-        const response = await this.numbersClient.get(`/v1/projects/${this.config.projectId}/activeNumbers/${encodeURIComponent(phoneNumber)}`);
+    async getActiveNumber(phoneNumber, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const numbersClient = this.createNumbersClient(projectConfig);
+        if (!projectConfig.projectId) {
+            throw new Error(`Project ID required for Numbers API. Please configure projectId for project '${projectName || 'default'}'`);
+        }
+        const response = await numbersClient.get(`/v1/projects/${projectConfig.projectId}/activeNumbers/${encodeURIComponent(phoneNumber)}`);
         return response.data;
     }
-    async releaseNumber(phoneNumber) {
-        const response = await this.numbersClient.delete(`/v1/projects/${this.config.projectId}/activeNumbers/${encodeURIComponent(phoneNumber)}`);
+    async releaseNumber(phoneNumber, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const numbersClient = this.createNumbersClient(projectConfig);
+        if (!projectConfig.projectId) {
+            throw new Error(`Project ID required for Numbers API. Please configure projectId for project '${projectName || 'default'}'`);
+        }
+        const response = await numbersClient.delete(`/v1/projects/${projectConfig.projectId}/activeNumbers/${encodeURIComponent(phoneNumber)}`);
         return response.data;
     }
-    // Verification API methods
-    async startVerification(identity, method, options = {}) {
-        const response = await this.verificationClient.post('/verification/v1/verifications', {
+    // Verification API methods (now with project selection)
+    async startVerification(identity, method, options = {}, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const verificationClient = this.createVerificationClient(projectConfig);
+        const response = await verificationClient.post('/verification/v1/verifications', {
             identity: {
                 type: 'number',
                 endpoint: identity,
@@ -131,32 +218,44 @@ class SinchAPIClient {
         });
         return response.data;
     }
-    async reportVerification(id, code) {
-        const response = await this.verificationClient.put(`/verification/v1/verifications/id/${id}`, { method: 'sms', sms: { code } });
+    async reportVerification(id, code, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const verificationClient = this.createVerificationClient(projectConfig);
+        const response = await verificationClient.put(`/verification/v1/verifications/id/${id}`, { method: 'sms', sms: { code } });
         return response.data;
     }
-    async getVerification(id) {
-        const response = await this.verificationClient.get(`/verification/v1/verifications/id/${id}`);
+    async getVerification(id, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const verificationClient = this.createVerificationClient(projectConfig);
+        const response = await verificationClient.get(`/verification/v1/verifications/id/${id}`);
         return response.data;
     }
-    // Subproject/Project Management API methods
-    async createSubproject(parentProjectId, displayName, options = {}) {
-        const response = await this.subprojectClient.post(`/v1alpha1/projects/${parentProjectId}/subprojects`, {
+    // Subproject/Project Management API methods (now with project selection)
+    async createSubproject(parentProjectId, displayName, options = {}, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const subprojectClient = this.createSubprojectClient(projectConfig);
+        const response = await subprojectClient.post(`/v1alpha1/projects/${parentProjectId}/subprojects`, {
             displayName,
             ...options
         });
         return response.data;
     }
-    async listSubprojects(parentProjectId) {
-        const response = await this.subprojectClient.get(`/v1alpha1/projects/${parentProjectId}/subprojects`);
+    async listSubprojects(parentProjectId, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const subprojectClient = this.createSubprojectClient(projectConfig);
+        const response = await subprojectClient.get(`/v1alpha1/projects/${parentProjectId}/subprojects`);
         return response.data;
     }
-    async getSubproject(parentProjectId, subprojectId) {
-        const response = await this.subprojectClient.get(`/v1alpha1/projects/${parentProjectId}/subprojects/${subprojectId}`);
+    async getSubproject(parentProjectId, subprojectId, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const subprojectClient = this.createSubprojectClient(projectConfig);
+        const response = await subprojectClient.get(`/v1alpha1/projects/${parentProjectId}/subprojects/${subprojectId}`);
         return response.data;
     }
-    async deleteSubproject(parentProjectId, subprojectId) {
-        const response = await this.subprojectClient.delete(`/v1alpha1/projects/${parentProjectId}/subprojects/${subprojectId}`);
+    async deleteSubproject(parentProjectId, subprojectId, projectName) {
+        const projectConfig = this.getProjectConfig(projectName);
+        const subprojectClient = this.createSubprojectClient(projectConfig);
+        const response = await subprojectClient.delete(`/v1alpha1/projects/${parentProjectId}/subprojects/${subprojectId}`);
         return response.data;
     }
     // Multi-project management helpers
@@ -220,7 +319,19 @@ function getSinchClient() {
         // Parse parent projects from environment (comma-separated list)
         const parentProjectsEnv = process.env.SINCH_PARENT_PROJECTS;
         const parentProjects = parentProjectsEnv ? parentProjectsEnv.split(',').map(p => p.trim()) : [];
+        // Parse multi-project configuration from environment
+        let projects;
+        const projectsEnv = process.env.SINCH_PROJECTS;
+        if (projectsEnv) {
+            try {
+                projects = JSON.parse(projectsEnv);
+            }
+            catch (error) {
+                console.error('Error parsing SINCH_PROJECTS environment variable:', error);
+            }
+        }
         const config = {
+            // Legacy single-project config
             servicePlanId: process.env.SINCH_SERVICE_PLAN_ID,
             apiToken: process.env.SINCH_API_TOKEN,
             projectId: process.env.SINCH_PROJECT_ID,
@@ -228,9 +339,13 @@ function getSinchClient() {
             clientSecret: process.env.SINCH_CLIENT_SECRET,
             region: process.env.SINCH_REGION || 'us',
             parentProjects,
+            // Multi-project config
+            projects,
+            defaultProject: process.env.SINCH_DEFAULT_PROJECT,
         };
-        if (!config.servicePlanId || !config.apiToken) {
-            throw new Error('SINCH_SERVICE_PLAN_ID and SINCH_API_TOKEN environment variables are required');
+        // Check if we have either legacy config or multi-project config
+        if ((!config.servicePlanId || !config.apiToken) && !projects) {
+            throw new Error('Either legacy config (SINCH_SERVICE_PLAN_ID + SINCH_API_TOKEN) or SINCH_PROJECTS environment variable is required');
         }
         sinchClient = new SinchAPIClient(config);
     }

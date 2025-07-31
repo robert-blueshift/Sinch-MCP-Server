@@ -31,6 +31,12 @@ This MCP server provides access to the following Sinch APIs:
 - ✅ Get detailed information about specific subprojects
 - ✅ Delete subprojects when no longer needed
 
+### Multi-Project Support 🆕
+- ✅ **Dynamic Credential Mapping** - Configure multiple projects with different credentials
+- ✅ **Project Selection** - Choose which project to use for each API call
+- ✅ **Unified Management** - Manage multiple Sinch projects from one MCP server
+- ✅ **Backward Compatibility** - Legacy single-project configuration still supported
+
 ### Resources
 - ✅ Browse SMS batches as resources
 - ✅ Browse active phone numbers as resources
@@ -56,9 +62,9 @@ npm run build
 
 ## Configuration
 
-### Environment Variables
+The server supports two configuration approaches:
 
-The server requires the following environment variables:
+### 1. Legacy Single-Project Configuration
 
 #### Required
 - `SINCH_SERVICE_PLAN_ID` - Your Sinch Service Plan ID (required for SMS API)
@@ -70,6 +76,34 @@ The server requires the following environment variables:
 - `SINCH_CLIENT_ID` - Client ID for OAuth authentication
 - `SINCH_CLIENT_SECRET` - Client secret for OAuth authentication  
 - `SINCH_REGION` - API region (`us`, `eu`, `au`, `br`, `ca`) - defaults to `us`
+
+### 2. Multi-Project Configuration (Recommended) 🆕
+
+#### Required
+- `SINCH_PROJECTS` - JSON object containing project configurations
+
+#### Optional
+- `SINCH_DEFAULT_PROJECT` - Name of the default project to use when no `project_config` is specified
+
+#### Multi-Project JSON Format
+```json
+{
+  "production": {
+    "servicePlanId": "prod-service-plan-id",
+    "apiToken": "prod-api-token",
+    "projectId": "prod-project-id",
+    "region": "us",
+    "displayName": "Production Environment"
+  },
+  "staging": {
+    "servicePlanId": "staging-service-plan-id",
+    "apiToken": "staging-api-token", 
+    "projectId": "staging-project-id",
+    "region": "us",
+    "displayName": "Staging Environment"
+  }
+}
+```
 
 ### Getting Your Credentials
 
@@ -127,7 +161,63 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 }
 ```
 
+## Multi-Project Usage 🆕
+
+### Project Selection
+
+Every tool now supports an optional `project_config` parameter to specify which project configuration to use:
+
+```json
+{
+  "to": ["+1234567890"],
+  "from": "+1555000123", 
+  "body": "Hello from staging!",
+  "project_config": "staging"
+}
+```
+
+If no `project_config` is specified, the server uses:
+1. The `SINCH_DEFAULT_PROJECT` if configured
+2. Legacy single-project credentials as fallback
+
+### Managing Multiple Projects
+
+Use the `list_configured_projects` tool to see all available project configurations:
+
+```json
+{
+  "tool": "list_configured_projects"
+}
+```
+
+This returns all configured projects with their display names and project IDs, making it easy to choose which project to use for each operation.
+
 ## Available Tools
+
+### Project Management Tools
+
+#### `list_configured_projects` 🆕
+List all configured Sinch projects available for use.
+
+**Parameters:** None
+
+**Returns:** Array of configured projects with names, display names, and project IDs
+
+**Example Response:**
+```json
+[
+  {
+    "name": "production",
+    "displayName": "Production Environment", 
+    "projectId": "prod-project-id"
+  },
+  {
+    "name": "staging",
+    "displayName": "Staging Environment",
+    "projectId": "staging-project-id"
+  }
+]
+```
 
 ### SMS Tools
 
@@ -138,6 +228,7 @@ Send SMS messages to one or more recipients.
 - `to` (string[]): Phone numbers in E.164 format
 - `from` (string): Sender phone number or short code
 - `body` (string): Message content (max 1600 characters)
+- `project_config` (optional): Name of the project configuration to use
 - `delivery_report` (optional): Type of delivery report (`none`, `summary`, `full`, `per_recipient`)
 - `expire_at` (optional): ISO 8601 timestamp when message expires
 - `flash_message` (optional): Send as flash SMS
@@ -148,6 +239,7 @@ Send SMS messages to one or more recipients.
   "to": ["+1234567890", "+1987654321"],
   "from": "+1555000123",
   "body": "Hello from Sinch MCP Server!",
+  "project_config": "production",
   "delivery_report": "summary"
 }
 ```
